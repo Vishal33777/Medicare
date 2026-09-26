@@ -2,7 +2,7 @@ import axios from "axios";
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
 const VerifyServicePaymentPage = () => {
   const location = useLocation();
@@ -10,6 +10,7 @@ const VerifyServicePaymentPage = () => {
 
   useEffect(() => {
     let cancelled = false;
+
     const verifyServicePayment = async () => {
       const params = new URLSearchParams(location.search || "");
       const sessionId = params.get("session_id");
@@ -36,12 +37,15 @@ const VerifyServicePaymentPage = () => {
         const res = await axios.get(
           `${API_BASE}/api/service-appointments/confirm`,
           {
-            params: { session_is: sessionId },
+            params: {
+              session_id: sessionId,
+            },
             timeout: 15000,
           },
         );
 
         if (cancelled) return;
+
         if (res?.data?.success) {
           navigate("/appointments?service_payment=Paid", {
             replace: true,
@@ -52,7 +56,8 @@ const VerifyServicePaymentPage = () => {
           });
         }
       } catch (error) {
-        console.log("Service Payment verification failed:", error);
+        console.error("Service Payment verification failed:", error);
+
         if (!cancelled) {
           navigate("/appointments?service_payment=Failed", {
             replace: true,
@@ -60,11 +65,14 @@ const VerifyServicePaymentPage = () => {
         }
       }
     };
+
     verifyServicePayment();
+
     return () => {
       cancelled = true;
     };
-  }, [location, navigate]);
+  }, [location.pathname, location.search, navigate]);
+
   return null;
 };
 

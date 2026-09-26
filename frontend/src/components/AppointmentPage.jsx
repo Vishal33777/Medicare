@@ -18,7 +18,7 @@ import {
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { Toaster } from "react-hot-toast";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_BACKEND_URL;
 const API = axios.create({ baseURL: API_BASE });
 
 //Helper functions

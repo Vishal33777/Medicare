@@ -41,7 +41,7 @@ const Footer = () => {
       Icon: FaFacebook,
       color: footerStyles.facebookColor,
       name: "Facebook",
-      href: "https://www.facebook.com/people/Hexagon-Digital-Services/61567156598660/",
+      href: "https://www.facebook.com/",
     },
     {
       Icon: FaTwitter,
@@ -53,19 +53,19 @@ const Footer = () => {
       Icon: FaInstagram,
       color: footerStyles.instagramColor,
       name: "Instagram",
-      href: "https://instagram.com/hexagondigitalservices",
+      href: "https://instagram.com/",
     },
     {
       Icon: FaLinkedin,
       color: footerStyles.linkedinColor,
       name: "LinkedIn",
-      href: "https://www.linkedin.com/company/hexagondigtial-services/",
+      href: "https://www.linkedin.com/",
     },
     {
       Icon: FaYoutube,
       color: footerStyles.youtubeColor,
       name: "YouTube",
-      href: "https://youtube.com/@hexagondigitalservices",
+      href: "https://youtube.com/",
     },
   ];
 

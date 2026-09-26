@@ -39,7 +39,7 @@ function parseTimeString(timeStr) {
 
 //this function will create the frontend url
 const buildFrontendBase = (req) => {
-  const env = process.env.FRONTEND_URL;
+  const env = process.env.FRONTEND_URL1;
   if (env) return env.replace(/\/$/, "");
   const origin = req.get("origin") || req.get("referer") || null;
   return origin ? origin.replace(/\/$/, "") : null;

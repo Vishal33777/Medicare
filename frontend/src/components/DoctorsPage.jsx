@@ -13,7 +13,7 @@ import {
 import { Link } from "react-router-dom";
 
 const DoctorsPage = () => {
-  const API_BASE = "http://localhost:4000";
+  const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
   const [allDoctors, setAllDoctors] = useState([]);
   const [loading, setLoading] = useState(true);

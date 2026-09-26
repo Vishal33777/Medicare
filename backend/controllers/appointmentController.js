@@ -8,7 +8,7 @@ import { application } from "express";
 dotenv.config();
 
 const STRIPE_KEY=process.env.STRIPE_SECRET_KEY;
-const FRONTEND_URL=process.env.FRONTEND_URL;
+const FRONTEND_URL=process.env.FRONTEND_URL1;
 
 const MAJOR_ADMIN_ID=process.env.MAJOR_ADMIN_ID || null;
 const stripe=STRIPE_KEY ? new Stripe(STRIPE_KEY, {apiVersion: "2023-10-16"}) : null;

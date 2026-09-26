@@ -6,7 +6,7 @@ import {
 } from "../assets/dummyStyles";
 import { Calendar, Search, BadgeIndianRupee } from "lucide-react";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
 //helper function
 //this function will return the date as 22 jan 2026

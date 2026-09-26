@@ -1,17 +1,31 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { serviceAppointmentsStyles } from "../assets/dummyStyles";
-import { Loader2, SearchIcon, XIcon } from "lucide-react";
+import {
+  Loader2,
+  SearchIcon,
+  XIcon,
+  CheckCircle,
+  XCircle,
+  User,
+  Phone,
+  BadgeIndianRupee,
+  Calendar,
+  Clock,
+} from "lucide-react";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
-//helper function
 function formatTwo(n) {
   return String(n).padStart(2, "0");
 }
 
 function formatDateNice(dateStr) {
   if (!dateStr) return "";
+
   const d = new Date(`${dateStr}T00:00:00`);
+
+  if (Number.isNaN(d.getTime())) return dateStr;
+
   return d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -19,56 +33,100 @@ function formatDateNice(dateStr) {
   });
 }
 
-function parseTimeToParts(timeStr) {
-  if (!timeStr) return { hour: 12, minute: 0, ampm: "AM" };
-  const m = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (m) {
-    let hh = Number(m[1]);
-    const mm = Number(m[2]);
-    const ampm = m[3] ? m[3].toUpperCase() : null;
-    if (!ampm) {
-      const hour12 = hh % 12 === 0 ? 12 : hh % 12;
-      return { hour: hour12, minute: mm, ampm: hh >= 12 ? "PM" : "AM" };
-    }
-    return { hour: hh, minute: mm, ampm };
-  }
-  return { hour: 12, minute: 0, ampm: "AM" };
-} //for time am/pm
+function getTodayISO() {
+  const d = new Date();
 
-function timePartsTo12HourString(hh24, mm) {
-  let ampm = hh24 >= 12 ? "PM" : "AM";
-  let hour = hh24 % 12 === 0 ? 12 : hh24 % 12;
-  return `${formatTwo(hour)}:${formatTwo(mm)} ${ampm}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isDateBefore(aDateStr, bDateStr) {
+  if (!aDateStr || !bDateStr) return false;
+
+  const a = new Date(`${aDateStr}T00:00:00`);
+  const b = new Date(`${bDateStr}T00:00:00`);
+
+  return a.getTime() < b.getTime();
+}
+
+function parseTimeToParts(timeStr) {
+  if (!timeStr) {
+    return {
+      hour: 12,
+      minute: 0,
+      ampm: "AM",
+    };
+  }
+
+  const value = String(timeStr).trim();
+
+  const m = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+
+  if (!m) {
+    return {
+      hour: 12,
+      minute: 0,
+      ampm: "AM",
+    };
+  }
+
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const providedAmpm = m[3]?.toUpperCase();
+
+  if (!providedAmpm) {
+    return {
+      hour: hh % 12 === 0 ? 12 : hh % 12,
+      minute: mm,
+      ampm: hh >= 12 ? "PM" : "AM",
+    };
+  }
+
+  return {
+    hour: hh,
+    minute: mm,
+    ampm: providedAmpm,
+  };
 }
 
 function timePartsToInputValue(a) {
-  const hour = Number(a.hour || 0);
-  const minute = Number(a.minute || 0);
+  const hour = Number(a?.hour || 12);
+  const minute = Number(a?.minute || 0);
+  const ampm = String(a?.ampm || "AM").toUpperCase();
+
   let hh24 = hour % 12;
-  if ((a.ampm || "AM").toUpperCase() === "PM") hh24 += 12;
-  if (a.ampm === "AM" && hour === 12) hh24 = 0;
-  if (a.ampm === "PM" && hour === 12) hh24 = 12;
+
+  if (ampm === "PM") {
+    hh24 += 12;
+  }
+
+  if (ampm === "AM" && hour === 12) {
+    hh24 = 0;
+  }
+
   return `${formatTwo(hh24)}:${formatTwo(minute)}`;
 }
 
-//how to display
 function formatTimeDisplay(a) {
   return `${formatTwo(a.hour)}:${formatTwo(a.minute)} ${a.ampm}`;
 }
 
-//small component for statusBadge
 function StatusBadge({ status }) {
   const classes = serviceAppointmentsStyles.statusBadge(status);
+
   return (
     <span className={classes}>
       {status === "Confirmed" && <CheckCircle className="h-4 w-4" />}
+
       {status === "Canceled" && <XCircle className="h-4 w-4" />}
+
       {status}
     </span>
   );
 }
 
-//for toast
 function Toast({ toasts, removeToast }) {
   return (
     <div className={serviceAppointmentsStyles.toastContainer}>
@@ -78,18 +136,21 @@ function Toast({ toasts, removeToast }) {
             <div className="mt-0.5">
               <Loader2 className={serviceAppointmentsStyles.toastSpinner} />
             </div>
+
             <div className={serviceAppointmentsStyles.toastText}>
               <div className={serviceAppointmentsStyles.toastTitle}>
                 {t.title}
               </div>
+
               <div className={serviceAppointmentsStyles.toastMessage}>
                 {t.message}
               </div>
             </div>
+
             <button
+              type="button"
               onClick={() => removeToast(t.id)}
               className={serviceAppointmentsStyles.toastCloseButton}
-              aria-label="close toast"
             >
               ✕
             </button>
@@ -100,16 +161,16 @@ function Toast({ toasts, removeToast }) {
   );
 }
 
-//for status select small component
 function StatusSelect({ appointment, onChange, disabled }) {
   const terminal =
     appointment.status === "Completed" || appointment.status === "Canceled";
 
   const options = [
-    { value: "Pending", label: "Pending" },
-    { value: "Confirmed", label: "Confirmed" },
-    { value: "Completed", label: "Completed" },
-    { value: "Canceled", label: "Canceled" },
+    "Pending",
+    "Confirmed",
+    "Rescheduled",
+    "Completed",
+    "Canceled",
   ];
 
   return (
@@ -118,51 +179,35 @@ function StatusSelect({ appointment, onChange, disabled }) {
       onChange={(e) => onChange(e.target.value)}
       disabled={terminal || disabled}
       className={serviceAppointmentsStyles.statusSelect(terminal)}
-      title={terminal ? "Status cannot be changed" : "Change status"}
     >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
+      {options.map((status) => (
+        <option key={status} value={status}>
+          {status}
         </option>
       ))}
     </select>
   );
 }
 
-//to get todays date ex-YYYY-MM-DD
-function getTodayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-//to check previous date comes first that is upcoming date comes first
-function isDateBefore(aDateStr, bDateStr) {
-  try {
-    const a = new Date(`${aDateStr}T00:00:00`);
-    const b = new Date(`${bDateStr}T00:00:00`);
-    return a.getTime() < b.getTime();
-  } catch {
-    return false;
-  }
-}
-
-//for reschedule
 function RescheduleButton({ appointment, onReschedule, disabled }) {
   const terminal =
     appointment.status === "Completed" || appointment.status === "Canceled";
+
   const [editing, setEditing] = useState(false);
-  const todayISO = getTodayISO();
-  const [date, setDate] = useState(appointment.date || todayISO);
+
+  const [date, setDate] = useState(appointment.date || getTodayISO());
+
   const [time, setTime] = useState(timePartsToInputValue(appointment));
 
   useEffect(() => {
     const baseDate = appointment.date || "";
-    const initialDate =
-      baseDate && !isDateBefore(baseDate, todayISO) ? baseDate : todayISO;
-    setDate(initialDate);
+
+    setDate(
+      baseDate && !isDateBefore(baseDate, getTodayISO())
+        ? baseDate
+        : getTodayISO(),
+    );
+
     setTime(timePartsToInputValue(appointment));
   }, [
     appointment.date,
@@ -171,75 +216,81 @@ function RescheduleButton({ appointment, onReschedule, disabled }) {
     appointment.ampm,
   ]);
 
-  //to save after editing
   function save() {
-    if (!date || !time) return;
-    if (isDateBefore(date, getTodayISO())) {
-      alert("Please choose today or a future date for rescheduling.");
+    if (!date || !time) {
+      alert("Please select both date and time.");
       return;
     }
+
+    if (isDateBefore(date, getTodayISO())) {
+      alert("Please choose today or a future date.");
+      return;
+    }
+
     onReschedule(date, time);
     setEditing(false);
   }
 
-  //to cancel a booking
   function cancel() {
-    const baseDate = appointment.date || "";
-    const restoreDate =
-      baseDate && !isDateBefore(baseDate, getTodayISO())
-        ? baseDate
-        : getTodayISO();
-    setDate(restoreDate);
+    setDate(
+      appointment.date && !isDateBefore(appointment.date, getTodayISO())
+        ? appointment.date
+        : getTodayISO(),
+    );
+
     setTime(timePartsToInputValue(appointment));
     setEditing(false);
   }
 
+  if (!editing) {
+    return (
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          disabled={terminal || disabled}
+          className={serviceAppointmentsStyles.rescheduleButton(terminal)}
+        >
+          Reschedule
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full">
-      {!editing ? (
-        <div className="flex justify-end">
-          <button
-            onClick={() => setEditing(true)}
-            disabled={terminal || disabled}
-            title={
-              terminal ? "Cannot reschedule completed/canceled" : "Reschedule"
-            }
-            className={serviceAppointmentsStyles.rescheduleButton(terminal)}
-          >
-            Reschedule
-          </button>
-        </div>
-      ) : (
-        <div className={serviceAppointmentsStyles.rescheduleEditContainer}>
-          <input
-            type="date"
-            value={date}
-            min={getTodayISO()}
-            onChange={(e) => setDate(e.target.value)}
-            className={serviceAppointmentsStyles.rescheduleDateInput}
-          />
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className={serviceAppointmentsStyles.rescheduleTimeInput}
-          />
-          <div className={serviceAppointmentsStyles.rescheduleActions}>
-            <button
-              onClick={save}
-              className={serviceAppointmentsStyles.rescheduleSaveButton}
-            >
-              Save
-            </button>
-            <button
-              onClick={cancel}
-              className={serviceAppointmentsStyles.rescheduleCancelButton}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+    <div className={serviceAppointmentsStyles.rescheduleEditContainer}>
+      <input
+        type="date"
+        value={date}
+        min={getTodayISO()}
+        onChange={(e) => setDate(e.target.value)}
+        className={serviceAppointmentsStyles.rescheduleDateInput}
+      />
+
+      <input
+        type="time"
+        value={time}
+        onChange={(e) => setTime(e.target.value)}
+        className={serviceAppointmentsStyles.rescheduleTimeInput}
+      />
+
+      <div className={serviceAppointmentsStyles.rescheduleActions}>
+        <button
+          type="button"
+          onClick={save}
+          className={serviceAppointmentsStyles.rescheduleSaveButton}
+        >
+          Save
+        </button>
+
+        <button
+          type="button"
+          onClick={cancel}
+          className={serviceAppointmentsStyles.rescheduleCancelButton}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -250,142 +301,196 @@ const ServiceAppointmentPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Search & debounce
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 220);
-    return () => clearTimeout(t);
-  }, [search]);
 
   const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     fetchAppointments();
   }, []);
 
   function pushToast(title, message) {
-    const toastId = Date.now() + Math.random();
-    setToasts((t) => [...t, { id: toastId, title, message }]);
+    const id = Date.now() + Math.random();
+
+    setToasts((prev) => [
+      ...prev,
+      {
+        id,
+        title,
+        message,
+      },
+    ]);
   }
+
   function removeToast(id) {
-    setToasts((t) => t.filter((x) => x.id !== id));
+    setToasts((prev) => prev.filter((x) => x.id !== id));
   }
+
+  useEffect(() => {
+    if (!toasts.length) return;
+
+    const timers = toasts.map((toast) =>
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((x) => x.id !== toast.id));
+      }, 3000),
+    );
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [toasts]);
 
   async function fetchAppointments() {
     setLoading(true);
     setError(null);
+
     try {
-      const url = `${API_BASE}/api/service-appointments?limit=500`;
-      const res = await fetch(url);
+      if (!API_BASE) {
+        throw new Error("VITE_BACKEND_URL is not configured.");
+      }
+
+      const res = await fetch(`${API_BASE}/api/service-appointments?limit=500`);
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+
         throw new Error(
           body?.message || `Failed to fetch appointments (${res.status})`,
         );
       }
-      const body = await res.json();
-      const list = Array.isArray(body.appointments)
-        ? body.appointments
-        : (body.appointments ??
-          body.items ??
-          body.data ??
-          body.appointments ??
-          []);
 
-      const normalized = (Array.isArray(list) ? list : [])
+      const body = await res.json();
+
+      const list = Array.isArray(body?.appointments)
+        ? body.appointments
+        : Array.isArray(body?.items)
+          ? body.items
+          : Array.isArray(body?.data)
+            ? body.data
+            : [];
+
+      const normalized = list
         .map((a) => {
-          const timeStr =
-            a.time ||
-            (a.slot && a.slot.time) ||
-            (a.hour !== undefined && a.minute !== undefined)
-              ? `${formatTwo(a.hour || 12)}:${formatTwo(a.minute ?? 0)} ${
-                  a.ampm || "AM"
-                }`
-              : a.rescheduledTo?.time ||
-                (a.slot && a.slot.time) ||
-                a.time ||
-                "";
+          let timeStr = "";
+
+          if (a.time) {
+            timeStr = a.time;
+          } else if (a.slot?.time) {
+            timeStr = a.slot.time;
+          } else if (a.hour !== undefined && a.minute !== undefined) {
+            timeStr = `${formatTwo(a.hour || 12)}:${formatTwo(
+              a.minute || 0,
+            )} ${a.ampm || "AM"}`;
+          } else if (a.rescheduledTo?.time) {
+            timeStr = a.rescheduledTo.time;
+          }
+
           const parsed = parseTimeToParts(timeStr);
+
           return {
             id: a._id || a.id,
+
             patientName:
-              a.patientName ||
-              a.name ||
-              (a.raw && a.raw.patientName) ||
-              "Unknown",
-            gender: a.gender || (a.raw && a.raw.gender) || "",
+              a.patientName || a.name || a.raw?.patientName || "Unknown",
+
+            gender: a.gender || a.raw?.gender || "",
+
             mobile: a.mobile || a.phone || "",
+
             age: a.age || a.raw?.age || "",
+
             serviceName:
               a.serviceName ||
               a.service ||
               a.raw?.serviceName ||
               (a.notes || "").slice(0, 40),
+
             fees: a.fees ?? a.fee ?? a.payment?.amount ?? 0,
-            date:
-              a.date || (a.slot && a.slot.date) || a.rescheduledTo?.date || "",
+
+            date: a.date || a.slot?.date || a.rescheduledTo?.date || "",
+
             hour: parsed.hour,
             minute: parsed.minute,
             ampm: parsed.ampm,
-            status: a.status || (a.payment && a.payment.status) || "Pending",
+
+            status: a.status || a.payment?.status || "Pending",
+
             raw: a,
           };
         })
-        .filter(Boolean);
+        .filter((a) => a.id);
+
       setAppointments(normalized);
     } catch (err) {
       console.error("fetchAppointments:", err);
+
       setError(err.message || "Failed to load appointments");
+
       setAppointments([]);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    if (toasts.length === 0) return;
-    const timers = toasts.map((t) =>
-      setTimeout(() => {
-        setToasts((s) => s.filter((x) => x.id !== t.id));
-      }, 3000),
-    );
-    return () => timers.forEach((t) => clearTimeout(t));
-  }, [toasts]);
-
   function extractUpdated(body) {
     return body?.data || body?.appointment || body || {};
   }
 
-  //to update the status
   async function changeStatusRemote(id, newStatus) {
     const old = appointments.find((a) => a.id === id);
+
     if (!old) return;
+
     if (old.status === "Completed" || old.status === "Canceled") {
       pushToast(
         "Cannot change status",
         `Appointment #${id} is already ${old.status}.`,
       );
+
       return;
     }
 
+    const previousStatus = old.status;
+
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              status: newStatus,
+            }
+          : a,
+      ),
     );
-    pushToast("Updating status", `Appointment #${id} → ${newStatus}`);
 
     try {
       const res = await fetch(`${API_BASE}/api/service-appointments/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
       });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+
         throw new Error(
           body?.message || `Status update failed (${res.status})`,
         );
       }
+
       const body = await res.json();
       const updated = extractUpdated(body);
 
@@ -395,47 +500,48 @@ const ServiceAppointmentPage = () => {
             ? {
                 ...a,
                 status: updated.status || newStatus,
-                date: updated.date || updated.rescheduledTo?.date || a.date,
-                hour: parseTimeToParts(
-                  updated.time ||
-                    updated.rescheduledTo?.time ||
-                    a.raw?.time ||
-                    `${formatTwo(a.hour)}:${formatTwo(a.minute)} ${a.ampm}`,
-                ).hour,
-                minute: parseTimeToParts(
-                  updated.time ||
-                    updated.rescheduledTo?.time ||
-                    a.raw?.time ||
-                    `${formatTwo(a.hour)}:${formatTwo(a.minute)} ${a.ampm}`,
-                ).minute,
-                ampm: parseTimeToParts(
-                  updated.time ||
-                    updated.rescheduledTo?.time ||
-                    a.raw?.time ||
-                    `${formatTwo(a.hour)}:${formatTwo(a.minute)} ${a.ampm}`,
-                ).ampm,
                 raw: updated || a.raw,
               }
             : a,
         ),
       );
+
       pushToast("Status updated", `Appointment #${id} is now ${newStatus}`);
     } catch (err) {
       console.error("changeStatusRemote:", err);
+
       setAppointments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: old.status } : a)),
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                status: previousStatus,
+              }
+            : a,
+        ),
       );
+
       pushToast("Update failed", err.message || "Failed to update status");
     }
   }
 
-  //to reschedule the appointment for later but not on previous days
   async function rescheduleRemote(id, dateStr, time24) {
     const appt = appointments.find((a) => a.id === id);
+
     if (!appt) return;
+
+    if (isDateBefore(dateStr, getTodayISO())) {
+      pushToast("Invalid date", "Please choose today or a future date.");
+
+      return;
+    }
+
     const [hh, mm] = time24.split(":").map(Number);
+
     const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+
     const ampm = hh >= 12 ? "PM" : "AM";
+
     const timeStr = `${formatTwo(hour12)}:${formatTwo(mm)} ${ampm}`;
 
     setAppointments((prev) =>
@@ -453,36 +559,35 @@ const ServiceAppointmentPage = () => {
       ),
     );
 
-    pushToast(
-      "Rescheduling",
-      `Appointment #${id} → ${formatDateNice(dateStr)} ${timeStr}`,
-    );
-
     try {
       const res = await fetch(`${API_BASE}/api/service-appointments/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          rescheduledTo: { date: dateStr, time: timeStr },
+          rescheduledTo: {
+            date: dateStr,
+            time: timeStr,
+          },
           status: "Rescheduled",
         }),
       });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+
         throw new Error(body?.message || `Reschedule failed (${res.status})`);
       }
+
       const body = await res.json();
       const updated = extractUpdated(body);
 
-      const finalDate =
-        updated.date || updated.rescheduledTo?.date || dateStr || appt.date;
-      const finalTimeStr =
-        updated.time ||
-        updated.rescheduledTo?.time ||
-        timeStr ||
-        `${formatTwo(appt.hour)}:${formatTwo(appt.minute)} ${appt.ampm}`;
+      const finalDate = updated.date || updated.rescheduledTo?.date || dateStr;
 
-      const parsed = parseTimeToParts(finalTimeStr);
+      const finalTime = updated.time || updated.rescheduledTo?.time || timeStr;
+
+      const parsed = parseTimeToParts(finalTime);
 
       setAppointments((prev) =>
         prev.map((a) =>
@@ -499,54 +604,68 @@ const ServiceAppointmentPage = () => {
             : a,
         ),
       );
+
       pushToast(
         "Rescheduled",
-        `Appointment #${id} moved to ${formatDateNice(
-          finalDate,
-        )} ${finalTimeStr}`,
+        `Appointment #${id} moved to ${formatDateNice(finalDate)} ${finalTime}`,
       );
     } catch (err) {
       console.error("rescheduleRemote:", err);
-      pushToast(
-        "Reschedule failed",
-        err.message || "Failed to reschedule — reloading",
-      );
+
+      pushToast("Reschedule failed", err.message || "Failed to reschedule");
+
       await fetchAppointments();
     }
   }
-  //to cancel any appt
+
   async function cancelRemote(id) {
     const appt = appointments.find((a) => a.id === id);
+
     if (!appt) return;
-    if (appt.status === "Canceled") return;
-    if (
-      !window.confirm(
-        `Mark appointment for ${appt.patientName} on ${formatDateNice(
-          appt.date,
-        )} as CANCELED?`,
-      )
-    )
+
+    if (appt.status === "Canceled" || appt.status === "Completed") {
       return;
+    }
+
+    const confirmed = window.confirm(
+      `Mark appointment for ${appt.patientName} on ${formatDateNice(
+        appt.date,
+      )} as CANCELED?`,
+    );
+
+    if (!confirmed) return;
 
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "Canceled" } : a)),
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              status: "Canceled",
+            }
+          : a,
+      ),
     );
-    pushToast("Canceling", `Appointment #${id} is being canceled`);
 
     try {
       const res = await fetch(
         `${API_BASE}/api/service-appointments/${id}/cancel`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+
         throw new Error(body?.message || `Cancel failed (${res.status})`);
       }
+
       const body = await res.json();
       const updated = extractUpdated(body);
+
       setAppointments((prev) =>
         prev.map((a) =>
           a.id === id
@@ -558,45 +677,59 @@ const ServiceAppointmentPage = () => {
             : a,
         ),
       );
+
       pushToast("Canceled", `Appointment #${id} canceled`);
     } catch (err) {
       console.error("cancelRemote:", err);
-      pushToast("Cancel failed", err.message || "Failed to cancel — reloading");
+
+      pushToast("Cancel failed", err.message || "Failed to cancel");
+
       await fetchAppointments();
     }
   }
 
-  //to filter
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
+
     return appointments
-      .filter((a) =>
-        q
-          ? (a.patientName || "").toLowerCase().includes(q) ||
-            (a.serviceName || "").toLowerCase().includes(q)
-          : true,
-      )
+      .filter((a) => {
+        if (!q) return true;
+
+        return (
+          (a.patientName || "").toLowerCase().includes(q) ||
+          (a.serviceName || "").toLowerCase().includes(q) ||
+          (a.mobile || "").toLowerCase().includes(q)
+        );
+      })
       .filter((a) => (statusFilter ? a.status === statusFilter : true));
   }, [appointments, debouncedSearch, statusFilter]);
 
-  //to get the timestamp for
   function getTimestamp(a) {
+    if (!a.date) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
     try {
-      const [y, m, d] = (a.date || "1970-01-01").split("-").map(Number);
+      const [y, m, d] = a.date.split("-").map(Number);
+
       let hour = Number(a.hour) || 0;
-      if ((a.ampm || "AM") === "PM" && hour !== 12) hour += 12;
-      if ((a.ampm || "AM") === "AM" && hour === 12) hour = 0;
-      const minute = Number(a.minute) || 0;
-      return new Date(y, (m || 1) - 1, d || 1, hour, minute).getTime();
+
+      if (String(a.ampm).toUpperCase() === "PM" && hour !== 12) {
+        hour += 12;
+      }
+
+      if (String(a.ampm).toUpperCase() === "AM" && hour === 12) {
+        hour = 0;
+      }
+
+      return new Date(y, m - 1, d, hour, Number(a.minute) || 0).getTime();
     } catch {
-      return 0;
+      return Number.MAX_SAFE_INTEGER;
     }
   }
-  //sort that is upcoming date comes first
+
   const displayList = useMemo(() => {
-    const copy = filtered.slice();
-    copy.sort((x, y) => getTimestamp(y) - getTimestamp(x));
-    return copy;
+    return filtered.slice().sort((a, b) => getTimestamp(a) - getTimestamp(b));
   }, [filtered]);
 
   return (
@@ -606,6 +739,7 @@ const ServiceAppointmentPage = () => {
           <h1 className={serviceAppointmentsStyles.headerTitle}>
             Appointments
           </h1>
+
           <p className={serviceAppointmentsStyles.headerSubtitle}>
             Manage patient bookings - quick search & status controls
           </p>
@@ -614,29 +748,33 @@ const ServiceAppointmentPage = () => {
         <div className={serviceAppointmentsStyles.searchContainer}>
           <div className={serviceAppointmentsStyles.searchInputWrapper}>
             <label className={serviceAppointmentsStyles.searchLabel}>
-              <span className=" sr-only">Search Appointments</span>
-              <div className=" flex items-center gap-2 relative w-full">
+              <span className="sr-only">Search Appointments</span>
+
+              <div className="flex items-center gap-2 relative w-full">
                 <div className={serviceAppointmentsStyles.searchIconContainer}>
                   <SearchIcon
                     className={serviceAppointmentsStyles.searchIcon}
                   />
                 </div>
+
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by patients or service..."
                   className={serviceAppointmentsStyles.searchInput}
                 />
-                {search ? (
+
+                {search && (
                   <button
-                    className={serviceAppointmentsStyles.clearSearchButton}
+                    type="button"
                     onClick={() => setSearch("")}
+                    className={serviceAppointmentsStyles.clearSearchButton}
                   >
                     <XIcon
                       className={serviceAppointmentsStyles.clearSearchIcon}
                     />
                   </button>
-                ) : null}
+                )}
               </div>
             </label>
 
@@ -644,7 +782,6 @@ const ServiceAppointmentPage = () => {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className={serviceAppointmentsStyles.statusFilterSelect}
-              title="Filter by status"
             >
               <option value="">All</option>
               <option value="Pending">Pending</option>
@@ -657,15 +794,17 @@ const ServiceAppointmentPage = () => {
 
           <div className="flex items-center gap-70 mt-3">
             <span className={serviceAppointmentsStyles.resultCount}>
-              {displayList.length} result{displayList.length !== 1 ? "s" : ""}
+              {displayList.length} result
+              {displayList.length !== 1 ? "s" : ""}
             </span>
 
             <button
               type="button"
               onClick={fetchAppointments}
+              disabled={loading}
               className={serviceAppointmentsStyles.refreshButton}
             >
-              Refresh
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -673,7 +812,8 @@ const ServiceAppointmentPage = () => {
 
       {loading ? (
         <div className={serviceAppointmentsStyles.loadingContainer}>
-          <Loader2 className=" animate-spin" /> Loading appointments...
+          <Loader2 className="animate-spin" />
+          Loading appointments...
         </div>
       ) : error ? (
         <div className={serviceAppointmentsStyles.errorContainer}>{error}</div>
@@ -684,9 +824,11 @@ const ServiceAppointmentPage = () => {
               <div className={serviceAppointmentsStyles.noResultsIcon}>
                 <SearchIcon />
               </div>
+
               <div className={serviceAppointmentsStyles.noResultsText}>
                 No appointments match your search
               </div>
+
               <div className={serviceAppointmentsStyles.noResultsSubtext}>
                 Try a different patient name or service
               </div>
@@ -694,7 +836,8 @@ const ServiceAppointmentPage = () => {
           ) : (
             displayList.map((a) => {
               const isLocked =
-                s.status === "Completed" || a.status === "Canceled";
+                a.status === "Completed" || a.status === "Canceled";
+
               return (
                 <article
                   key={a.id}
@@ -724,12 +867,13 @@ const ServiceAppointmentPage = () => {
                             >
                               {a.patientName}
                             </div>
+
                             <div
                               className={
                                 serviceAppointmentsStyles.patientDetails
                               }
                             >
-                              {a.gender} • {a.age} yrs
+                              {a.gender || "N/A"} • {a.age || "N/A"} yrs
                             </div>
                           </div>
                         </div>
@@ -738,11 +882,13 @@ const ServiceAppointmentPage = () => {
                           className={serviceAppointmentsStyles.statusContainer}
                         >
                           <StatusBadge status={a.status} />
+
                           <div className="mt-1">
                             <StatusSelect
                               appointment={a}
-                              onChange={(s) => changeStatusRemote(a.id, s)}
-                              disabled={false}
+                              onChange={(status) =>
+                                changeStatusRemote(a.id, status)
+                              }
                             />
                           </div>
                         </div>
@@ -755,10 +901,11 @@ const ServiceAppointmentPage = () => {
                           <Phone
                             className={serviceAppointmentsStyles.detailIcon}
                           />
+
                           <span
                             className={serviceAppointmentsStyles.detailText}
                           >
-                            {a.mobile}
+                            {a.mobile || "N/A"}
                           </span>
                         </div>
 
@@ -766,6 +913,7 @@ const ServiceAppointmentPage = () => {
                           <BadgeIndianRupee
                             className={serviceAppointmentsStyles.detailIcon}
                           />
+
                           <span className={serviceAppointmentsStyles.feesText}>
                             Fees: ₹{a.fees}
                           </span>
@@ -775,6 +923,7 @@ const ServiceAppointmentPage = () => {
                           <Calendar
                             className={serviceAppointmentsStyles.detailIcon}
                           />
+
                           <span
                             className={serviceAppointmentsStyles.detailText}
                           >
@@ -786,6 +935,7 @@ const ServiceAppointmentPage = () => {
                           <Clock
                             className={serviceAppointmentsStyles.detailIcon}
                           />
+
                           <span
                             className={serviceAppointmentsStyles.detailText}
                           >
@@ -798,7 +948,7 @@ const ServiceAppointmentPage = () => {
                           <span
                             className={serviceAppointmentsStyles.serviceName}
                           >
-                            {a.serviceName}
+                            {a.serviceName || "N/A"}
                           </span>
                         </div>
                       </div>
@@ -813,23 +963,20 @@ const ServiceAppointmentPage = () => {
                         <div className="flex-1">
                           <RescheduleButton
                             appointment={a}
-                            onReschedule={(d, t) =>
-                              rescheduleRemote(a.id, d, t)
+                            onReschedule={(date, time) =>
+                              rescheduleRemote(a.id, date, time)
                             }
-                            disabled={false}
                           />
                         </div>
 
                         <div className="ml-3">
                           <button
+                            type="button"
                             onClick={() => cancelRemote(a.id)}
                             disabled={isLocked}
                             className={serviceAppointmentsStyles.cancelButton(
                               isLocked,
                             )}
-                            title={
-                              isLocked ? "Cannot cancel" : "Cancel appointment"
-                            }
                           >
                             Cancel
                           </button>
@@ -845,39 +992,40 @@ const ServiceAppointmentPage = () => {
       )}
 
       <Toast toasts={toasts} removeToast={removeToast} />
+
       <div className={serviceAppointmentsStyles.legendContainer}>
         <div className={serviceAppointmentsStyles.legendItem}>
           <div
             className={`${serviceAppointmentsStyles.legendDot} bg-amber-400`}
-          />{" "}
+          />
           <span>Pending</span>
         </div>
 
         <div className={serviceAppointmentsStyles.legendItem}>
           <div
             className={`${serviceAppointmentsStyles.legendDot} bg-emerald-400`}
-          />{" "}
+          />
           <span>Confirmed</span>
         </div>
 
         <div className={serviceAppointmentsStyles.legendItem}>
           <div
             className={`${serviceAppointmentsStyles.legendDot} bg-red-400`}
-          />{" "}
+          />
           <span>Canceled</span>
         </div>
 
         <div className={serviceAppointmentsStyles.legendItem}>
           <div
             className={`${serviceAppointmentsStyles.legendDot} bg-sky-400`}
-          />{" "}
+          />
           <span>Completed</span>
         </div>
 
         <div className={serviceAppointmentsStyles.legendItem}>
           <div
             className={`${serviceAppointmentsStyles.legendDot} bg-indigo-400`}
-          />{" "}
+          />
           <span>Rescheduled</span>
         </div>
 

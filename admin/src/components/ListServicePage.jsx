@@ -13,7 +13,7 @@ import {
 import { serviceListStyles as s } from "../assets/dummyStyles";
 
 export default function ListServicePage() {
-  const API_BASE = "http://localhost:4000";
+  const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
   const [services, setServices] = useState([]);
   const [openDetails, setOpenDetails] = useState({});
